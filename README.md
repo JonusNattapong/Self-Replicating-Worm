@@ -22,13 +22,20 @@ This is **MALWARE**. It is designed to replicate itself across systems. Use only
 ## Architecture
 
 ```
-Final Executable = [Assembly Stub] + [Signature] + [Size] + [Key] + [Encrypted Payload]
-                   └─ Runs immediately   └─ Metadata ─┘  └─ Decrypted at runtime ─┘
+Final Executable = [Compiled Stub] + [PE_PACK] + [Size] + [Key] + [Encrypted Payload]
+                   └─ Runs immediately  └─ Metadata ─┘  └─ Decrypted at runtime ─┘
 ```
 
-1. **Builder (Rust)**: Creates packed executable with encrypted payload
-2. **Stub (Assembly)**: Scans for signature, decrypts payload, executes worm
-3. **Runtime**: Each copy has unique encryption, evading signature detection
+### **Functional Self-Decrypting Executables**
+1. **Builder**: Loads `stub.exe` + encrypts payload with polymorphic key
+2. **Stub (Assembly)**: Scans memory for "PE_PACK", extracts key, decrypts payload
+3. **Runtime**: Allocates executable memory, decrypts worm code, jumps to execution
+4. **Result**: Each copy is a **runnable polymorphic executable** that spreads itself
+
+### **Key Innovation: Proper Stub + Payload Separation**
+- **Before**: Encrypted entire binary (non-functional)
+- **After**: Stub remains executable, only payload encrypted
+- **Result**: Dropped files actually run and decrypt themselves at runtime
 
 ## Compilation
 
