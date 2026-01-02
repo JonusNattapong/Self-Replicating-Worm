@@ -1,6 +1,6 @@
 # AI Self-Replicating Worm (C++ Implementation)
 
-A highly advanced malware prototype featuring AI-driven decision making, polymorphic encryption, PE packing, and self-decrypting executables.
+A highly advanced malware implementation featuring AI-driven decision making, polymorphic encryption, PE packing, and self-decrypting executables.
 
 ## ⚠️ WARNING
 This is **MALWARE**. It is designed to replicate itself across systems. Use only in controlled environments for research purposes.
