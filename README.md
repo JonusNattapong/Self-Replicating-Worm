@@ -94,8 +94,9 @@ cargo build --release
 
 ## Files
 
-- `src/main.rs`: Main Rust worm implementation
-- `stub.asm`: Assembly decryption stub
+- `src/main.rs`: Advanced Rust worm implementation with full features
+- `src/main.cpp`: Basic C++ worm implementation (cross-platform)
+- `stub.asm`: Assembly decryption stub for Rust version
 - `Cargo.toml`: Rust dependencies
 - `README.md`: This documentation
 
